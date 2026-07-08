@@ -56,8 +56,54 @@ Le carte attacco invece invertono i ruoli, ora colui che prima difendeva diventa
 10. **B** riparte, sfila e mostra una carta *liscia* (re di bastoni)
 11. **A** sfila e mostra ...
 
-## Fine della partita e decreto vincitore
+### Fine della partita e decretamento vincitore
 la partita finisce quando l'intero mazzo di carte è in possesso di uno dei due giocatori, ergo un giocatore non possiede più carte nel proprio mazzetto. Esso corrisponde ad una configurazione 40 - 0 o 0 - 40 dei due mazzetti. Si decreta allora vincitore ovviamente il giocatore in possesso del mazzo completo (il "40" nella configurazione precedente).
 
+## Presentazione Progetto
+ora che si ha un quadro generale completo rispetto al dominio di interesse, possiamo porre le domande a cui cercheremo di dar risposta. In primis come accennavo all'inizio il gioco è determinato, non c'è scelta umana, le regole dettano in modo completo la risoluzione del gioco. Ne segue banalmente che il gioco è perfettamente simulabile con una macchina a stati finiti e facilmente implementabile. Partendo dai due mazzetti iniziali e dall'ordine di gioco stabilito se ne potrebbe facilmente decretare il vincitore in pochi millisecondi.
+
+La principale domanda in questa prima sezione è la seguente : è possibile che una partita non termini mai? \
+essa corrisponde, una volta definita l'architettura a stati precisa alla domanda : esiste un loop tra stati? 
+
+### Definizione FSM
+Il gioco rappresenta un sistema discreto autonomo, non ci sono input di conseguenza ciò che di norma sarebbe cosi : $$\delta: Q \times \Sigma \to Q$$
+collassa al solo $$\delta: Q \to Q$$ poichè l'alfabeto di input è identicamente nullo  ($\Sigma = \emptyset$)
+
+La definizione di stato dovrà allora essere estremamente rigorosa in modo da non creare assenza di determinismo. Per rispettare la richiesta ho codificato uno stato come informazione unicamente caratterizzata dai due mazzetti e giocatore di partenza del ciclo. Gli stati saranno enumerati per numero di carte nei mazzetti e corrispondente ordine di carte e di turno. Una transizione non è un turno di sfilamenti di carte alternato, bensi è tutto un ciclo, da quando si parte alla prima raccolta post-attacco. E' proprio successivamente a tale evento che il gioco si troverà in un'ulteriore stato valido con diverse configurazioni dei mazzetti e di turno.
+
+Alla luce di ciò illustrerò alcuni numeri per farsi un'idea della dimensione del nostro insieme di stati. \
+Per iniziare ci terrei a specificare che è palese una presenza possibile di *pruning* in tale insieme e ne farò riferimento più avanti. \
+Per i calcoli faremo riferimento alla divisione per categorie del mazzo di carte apprezzata in precedenza. sono 12 carte attacco divise in gruppi da 4, 4 carte blocco e 24 carte lisce.\
+Tenendo conto di ciò se ne deriva che le permutazioni all'interno degli stessi gruppi sono con ripetizione. In particolare allora la formula per ottenere il numero di stati completo è un semplice coefficiente multinomiale dove va tenuto conto di due aspetti : L'ordine ne raddoppia la dimensione (una stessa identica configurazione dei mazzetti porta a stati diversi a seconda del giocatore che parte a sfilare); le 40 carte devono formare due mazzetti e di conseguenza per ogni combinazione con ripetizione ci saranno 41 tagli disponibili. La formula completa sarà allora : 
+
+$$N_{stati} = \left( \frac{40!}{4! \cdot 4! \cdot 4! \cdot 4! \cdot 24!} \right) \cdot 41 \cdot 2 \approx 3.25016 \times 10^{20}$$
+
+Un numero non esagerato ma comunque troppo grande per approcci di analisi grafo come un Brute-Force BFS.
+
+Ragionando maggiormente sulle logiche di gioco possiamo però tagliare, ridurre, limitare ulteriormente il numero di stati, in particolare, partendo unicamente dalle permutazioni con ripetizione sul mazzo completo ovvero:
+
+$$P = \frac{40!}{4! \cdot 4! \cdot 4! \cdot 4! \cdot 24!} \approx 3.9636 \times 10^{18}$$
+
+sfruttiamo la presenza di tali limitazioni :
+ 1. Taglio sulla simmetria : l'informazione del turno si può codificare interamente sull'indice del primo mazzo, uno stato del tipo [Mazzo A, Mazzo B, tocca ad A] è equivalente ad uno stato del tipo [Mazzo B, Mazzo A, tocca a B] collassando entrambi su [Mazzo giocatore del turno, Mazzo giocatore non del turno]. Ciò permette di risparmiarsi completamente il fattore 2 nel calcolo totale.
+ 2. Taglio sui pozzi : sui 41 tagli possibili del mazzo permutato due sono evidentemente degli stati finali, indifferentemente dalla configurazione interna gli stati 40 - 0 e 0 - 40 possono collassare in due unici stati finali *Vittoria passivo* e *Vittoria attivo* riducendo ulteriormente i possibili stati a
+ 
+ $$N = (P \cdot 39) + 2 \approx 1.54582 \times 10^{20}$$
+    
+ 3. Taglio per Conclusione affrettata : Se in una partizione tutte le carte attacco sono nel mazzetto di un unico giocatore la vittoria ne segue immediatamente, matematicamente avendo 12 carte attacco e 28 tra lisce e bloccanti qual è la probabilità che un mazzo di massimo 28 carte (se ne avesse di più ci sarebbe necessariamente una carta attacco) non ci siano carte attacco? La distribuzione è ipergeometrica con formula
+    
+$$Prob(0 \text{ attacchi}) = \frac{\binom{28}{k}}{\binom{40}{k}}$$
+
+ 4. Taglio sul dominio logico : Dopo che entrambi i giocatori hanno vinto almeno un attacco sarà impossibile trovare configurazioni con carte in coda non lisce. Se ne deriva dalle regole, se un giocatore ha raccolto carte il difensore ha "giocato carta liscia tot volte" dove *tot* è minimo 1. Per quanto questa euristica propone un potenziale risparmio del 65% sulle permutazioni non potrà essere inserita nella formula finale dato che l'informazione "ho pescato almeno una volta" non è davvero codificabile matematicamente.
+
+<br>
+La formula finale sarà allora
+
+$$N_{explore} = 2 + \sum_{k=1}^{39} \left[ P \cdot \left( 1 - H(k) - H(40-k) \right) \right] \approx 1.37507 \times 10^{20}$$
+
+con *H(k)* la probabilità che nel taglio k la partizione sia in uno stato di conclusione affrettata (3) (essa vale 0 se *k* > 28 ). \
+Precisiamo un aspetto sul "Taglio sul dominio logico". Si potrebbe pensare di sfruttarlo definendo uno stato a Regime da cui passano tutte le partite, tale stato indicherebbe una vittoria di ciclo (e conseguente raccolta carte) di entrambi i giocatori. Successivamente ad esso la nostra riduzione del 65% entrerebbe in rigore trasformando la formula degli stati esplorabili in modo "dinamico". Tuttavia, questa riduzione a priori è matematicamente scorretta. Esistono infatti rami del grafo perfettamente validi (i cosiddetti "cappotti") in cui un giocatore subisce attacchi continui senza mai vincere una presa. In questi scenari, il giocatore passivo non altererà mai il fondo del proprio mazzo, conservando la "memoria" dello shuffle iniziale (che potrebbe benissimo essere una carta attacco) fino al suo esaurimento.
+
+Sebbene non sia un vincolo assoluto per tutte le foglie del grafo, la regola del fondo liscio agisce come un potente attrattore. Non appena la partita supera le fasi iniziali e si verifica uno scambio di prese tra i due giocatori, il sistema collassa in un sottospazio in cui entrambi i mazzetti terminano con una liscia. Calcolando la probabilità combinata, sappiamo che solo circa il 35.3% degli stati teorici possiede un "doppio fondo liscio". Questo significa che, una volta esaurito il transitorio iniziale, la nostra macchina a stati finiti (FSM) abbandonerà per sempre quasi il 65% dello spazio $N_{explore}$, confinando i loop infiniti e le partite più lunghe all'interno di questo nucleo grammaticale ristretto.
 
 
