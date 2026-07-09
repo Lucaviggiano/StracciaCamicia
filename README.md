@@ -94,7 +94,12 @@ sfruttiamo la presenza di tali limitazioni :
     
 $$Prob(0 \text{ attacchi}) = \frac{\binom{28}{k}}{\binom{40}{k}}$$
 
- 4. Taglio sul dominio logico : Dopo che entrambi i giocatori hanno vinto almeno un attacco sarà impossibile trovare configurazioni con carte in coda non lisce. Se ne deriva dalle regole, se un giocatore ha raccolto carte il difensore ha "giocato carta liscia tot volte" dove *tot* è minimo 1. Per quanto questa euristica propone un potenziale risparmio del 65% sulle permutazioni non potrà essere inserita nella formula finale dato che l'informazione "ho pescato almeno una volta" non è davvero codificabile matematicamente.
+ 4. Taglio sul dominio logico : Dopo che entrambi i giocatori hanno vinto almeno un attacco sarà impossibile trovare configurazioni con carte in coda diverse da :
+    * 1. Suffix Asso: [..., Asso, Liscia]
+    * 2. Suffix Due: [..., Due, Liscia, Liscia]
+    * 3. Suffix Tre: [..., Tre, Liscia, Liscia, Liscia]
+
+    Se ne deriva dalle regole, se un giocatore ha raccolto carte il difensore ha "giocato carta liscia tot volte" dove *tot* è minimo 1. Per quanto questa euristica propone un potenziale risparmio enorme sulle permutazioni non potrà essere inserita nella formula finale dato che l'informazione "ho pescato almeno una volta" non è davvero codificabile matematicamente.
 
 <br>
 La formula finale sarà allora
@@ -102,8 +107,8 @@ La formula finale sarà allora
 $$N_{explore} = 2 + \sum_{k=1}^{39} \left[ P \cdot \left( 1 - H(k) - H(40-k) \right) \right] \approx 1.37507 \times 10^{20}$$
 
 con *H(k)* la probabilità che nel taglio k la partizione sia in uno stato di conclusione affrettata (3) (essa vale 0 se *k* > 28 ). \
-Precisiamo un aspetto sul "Taglio sul dominio logico". Si potrebbe pensare di sfruttarlo definendo uno stato a Regime da cui passano tutte le partite, tale stato indicherebbe una vittoria di ciclo (e conseguente raccolta carte) di entrambi i giocatori. Successivamente ad esso la nostra riduzione del 65% entrerebbe in rigore trasformando la formula degli stati esplorabili in modo "dinamico". Tuttavia, questa riduzione a priori è matematicamente scorretta. Esistono infatti rami del grafo perfettamente validi (i cosiddetti "cappotti") in cui un giocatore subisce attacchi continui senza mai vincere una presa. In questi scenari, il giocatore passivo non altererà mai il fondo del proprio mazzo, conservando la "memoria" dello shuffle iniziale (che potrebbe benissimo essere una carta attacco) fino al suo esaurimento.
+Precisiamo un aspetto sul "Taglio sul dominio logico". Si potrebbe pensare di sfruttarlo definendo uno stato a Regime da cui passano tutte le partite, tale stato indicherebbe una vittoria di ciclo (e conseguente raccolta carte) di entrambi i giocatori. Successivamente ad esso la nostra riduzione (stimata al 98.5%)  entrerebbe in rigore trasformando la formula degli stati esplorabili in modo "dinamico". Tuttavia, questa riduzione a priori è matematicamente scorretta. Esistono infatti rami del grafo perfettamente validi (i cosiddetti "cappotti") in cui un giocatore subisce attacchi continui senza mai vincere una presa. In questi scenari, il giocatore passivo non altererà mai il fondo del proprio mazzo, conservando la "memoria" dello shuffle iniziale (che potrebbe benissimo essere una carta attacco) fino al suo esaurimento.
 
-Sebbene non sia un vincolo assoluto per tutte le foglie del grafo, la regola del fondo liscio agisce come un potente attrattore. Non appena la partita supera le fasi iniziali e si verifica uno scambio di prese tra i due giocatori, il sistema collassa in un sottospazio in cui entrambi i mazzetti terminano con una liscia. Calcolando la probabilità combinata, sappiamo che solo circa il 35.3% degli stati teorici possiede un "doppio fondo liscio". Questo significa che, una volta esaurito il transitorio iniziale, la nostra macchina a stati finiti (FSM) abbandonerà per sempre quasi il 65% dello spazio $N_{explore}$, confinando i loop infiniti e le partite più lunghe all'interno di questo nucleo grammaticale ristretto.
+Sebbene non sia un vincolo assoluto per tutte le foglie del grafo, la regola del suffisso regolare agisce come un potente attrattore. Non appena la partita supera le fasi iniziali e si verifica uno scambio di prese tra i due giocatori, il sistema collassa in un sottospazio in cui entrambi i mazzetti seguono necessariamente la regola sui suffissi. Calcolando la probabilità combinata, sappiamo che solo circa il 1.46% degli stati teorici possiede una struttura di questo tipo. Questo significa che, una volta esaurito il transitorio iniziale, la nostra macchina a stati finiti (FSM) abbandonerà per sempre quasi il 99% dello spazio $N_{explore}$, confinando i loop infiniti e le partite più lunghe all'interno di questo nucleo grammaticale ristretto.
 
 
