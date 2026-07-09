@@ -13,12 +13,19 @@ void Pipeline::worker_task(uint64_t seed_start, uint64_t seed_end, uint16_t cuto
     // Il thread si fa semplicemente il suo ciclo for sul suo "fazzoletto" di seed assegnato.
     for (uint64_t current_seed = seed_start; current_seed < seed_end; ++current_seed) {
         
-        // Lancia il simulatore
-        GameResult res = FastKernel::playGame(current_seed, cutoff);
+        // Lancia il simulatore ottimizzato
+        GameResult res = FastKernel::playGameFast(current_seed, cutoff);
         
         // AGGIORNAMENTO TELEMETRIA
         out_result->total_turns += res.num_turns;
-        out_result->max_turns = std::max(out_result->max_turns, res.num_turns);
+        if (res.num_turns > out_result->max_turns) {
+            out_result->max_turns = res.num_turns;
+            out_result->max_seed = current_seed; // <-- SALVIAMO IL SEED!
+        }
+        if (res.status != GameStatus::CUTOFF_REACHED && res.num_turns < out_result->min_turns) {
+            out_result->min_turns = res.num_turns;
+            out_result->min_seed = current_seed; // <-- SALVIAMO IL SEED MINIMO!
+        }
 
         // Aggiorna i contatori locali (nessun mutex necessario!)
         if (res.status == GameStatus::P1_WINS) {
@@ -75,6 +82,9 @@ void Pipeline::run_simulation(uint64_t start_seed, uint64_t num_games, uint16_t 
     uint64_t total_p2_wins = 0;
     uint64_t global_total_turns = 0;
     uint16_t global_max_turns = 0;
+    uint64_t global_max_seed = 0;
+    uint16_t global_min_turns = 0xFFFF;
+    uint64_t global_min_seed = 0;
     std::vector<uint64_t> all_loop_seeds;
  
     for (int i = 0; i < num_threads; ++i) {
@@ -83,7 +93,14 @@ void Pipeline::run_simulation(uint64_t start_seed, uint64_t num_games, uint16_t 
         
         // Uniamo la telemetria
         global_total_turns += results[i].total_turns;
-        global_max_turns = std::max(global_max_turns, results[i].max_turns);
+        if (results[i].max_turns > global_max_turns) {
+            global_max_turns = results[i].max_turns;
+            global_max_seed = results[i].max_seed;
+        }
+        if (results[i].min_turns < global_min_turns) {
+            global_min_turns = results[i].min_turns;
+            global_min_seed = results[i].min_seed;
+        }
         
         all_loop_seeds.insert(all_loop_seeds.end(), results[i].loop_seeds.begin(), results[i].loop_seeds.end());
     }
@@ -101,8 +118,9 @@ void Pipeline::run_simulation(uint64_t start_seed, uint64_t num_games, uint16_t 
     std::cout << "Throughput      : " << throughput << " Milioni di sim/sec\n";
     std::cout << "Vittorie P1     : " << total_p1_wins << "\n";
     std::cout << "Vittorie P2     : " << total_p2_wins << "\n";
-    std::cout << "Turni medi/partita: " << (global_total_turns / (double)num_games) << "\n";
-    std::cout << "Turni MAX toccati : " << global_max_turns << "\n";
+    std::cout << "Turno medi/partita: " << (global_total_turns / (double)num_games) << "\n";
+    std::cout << "Turni MAX toccati : " << global_max_turns << " (Seed: " << global_max_seed << ")\n";
+    std::cout << "Turni MIN toccati : " << global_min_turns << " (Seed: " << global_min_seed << ")\n";
     std::cout << "Partite in loop : " << all_loop_seeds.size() << " (Cutoff a " << cutoff << " turni)\n";
 
     // Se abbiamo trovato loop, stampiamo i primi 5 seed per permetterti di analizzarli dopo

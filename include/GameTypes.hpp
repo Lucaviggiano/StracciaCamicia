@@ -6,6 +6,31 @@ constexpr uint8_t BUFFER_SIZE = 64;
 constexpr uint8_t BUFFER_MASK = 63; // Maschera per il bitwise AND (64-1)
 constexpr uint8_t MAX_TABLE   = 40; // Nessuna partita può avere più di 40 carte a terra
 
+// ==========================================
+// PRNG ultra-leggero: SplitMix64
+// Stato = 8 byte (vs 2.5 KB di mt19937_64)
+// Seeding istantaneo (nessuna inizializzazione di stato interno)
+// Qualità statistica eccellente per Fisher-Yates shuffle
+// ==========================================
+inline void fast_shuffle(uint8_t* deck, int n, uint64_t seed) {
+    uint64_t state = seed;
+    for (int i = n - 1; i > 0; --i) {
+        // SplitMix64: genera 64 bit pseudo-casuali
+        uint64_t z = (state += 0x9e3779b97f4a7c15ULL);
+        z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+        z = z ^ (z >> 31);
+        
+        // Lemire's fastrange: indice in [0, i+1) senza modulo (no rejection sampling)
+        uint32_t j = (uint32_t)(((uint64_t)(uint32_t)z * (uint64_t)(i + 1)) >> 32);
+        
+        // Swap
+        uint8_t tmp = deck[i];
+        deck[i] = deck[j];
+        deck[j] = tmp;
+    }
+}
+
 // Definizione chiara degli stati di uscita
 enum class GameStatus : int8_t {
     PLAYING = 0,

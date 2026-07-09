@@ -11,6 +11,9 @@ struct WorkerResult {
     // NUOVE VARIABILI PER LA TELEMETRIA
     uint64_t total_turns = 0; 
     uint16_t max_turns = 0;   
+    uint64_t max_seed = 0;
+    uint16_t min_turns = 0xFFFF; // inizializzato al massimo possibile per uint16_t
+    uint64_t min_seed = 0;
     
     // Un vector dinamico per salvare i seed che finiscono in cutoff.
     // Essendo locale al thread, non serve nessun mutex!
