@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include <atomic>
 
 // Questa è la struttura che ogni Thread restituirà al Main Thread alla fine del suo lavoro.
 // È il "foglio degli appunti" privato di cui parlavamo.
@@ -31,5 +32,5 @@ private:
     // Questa è la funzione che verrà eseguita letteralmente da ogni singolo Thread.
     // Riceve il proprio range di competenza (da seed_start a seed_end)
     // e un puntatore al proprio WorkerResult dove scrivere i dati.
-    static void worker_task(uint64_t seed_start, uint64_t seed_end, uint16_t cutoff, WorkerResult* out_result);
+    static void worker_task(uint64_t seed_start, uint64_t seed_end, uint16_t cutoff, WorkerResult* out_result, std::atomic<uint64_t>* progress);
 };

@@ -4,15 +4,25 @@
 #include <thread>
 #include <chrono> // Per misurare le performance
 #include <algorithm>
+#include <iomanip>
+#include <memory>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
+// Struttura allineata a 64 byte (dimensione tipica della cache line)
+// per prevenire il "false sharing" tra i thread.
+struct alignas(64) AlignedAtomicProgress {
+    std::atomic<uint64_t> value{0};
+};
 
 // ==========================================
 // 1. IL LAVORATORE (Eseguito in parallelo)
 // ==========================================
-void Pipeline::worker_task(uint64_t seed_start, uint64_t seed_end, uint16_t cutoff, WorkerResult* out_result) {
-    
-    // Il thread si fa semplicemente il suo ciclo for sul suo "fazzoletto" di seed assegnato.
+void Pipeline::worker_task(uint64_t seed_start, uint64_t seed_end, uint16_t cutoff, WorkerResult* out_result, std::atomic<uint64_t>* progress) {
     for (uint64_t current_seed = seed_start; current_seed < seed_end; ++current_seed) {
-        
         // Lancia il simulatore ottimizzato
         GameResult res = FastKernel::playGameFast(current_seed, cutoff);
         
@@ -37,7 +47,14 @@ void Pipeline::worker_task(uint64_t seed_start, uint64_t seed_end, uint16_t cuto
         else if (res.status == GameStatus::CUTOFF_REACHED) {
             out_result->loop_seeds.push_back(current_seed);
         }
+
+        // Aggiorna il progresso atomico solo ogni 65536 partite per massimizzare il throughput
+        if ((current_seed & 0xFFFF) == 0) {
+            progress->store(current_seed - seed_start, std::memory_order_relaxed);
+        }
     }
+    // Aggiornamento finale per assicurare precisione al 100%
+    progress->store(seed_end - seed_start, std::memory_order_relaxed);
 }
 
 // ==========================================
@@ -60,18 +77,85 @@ void Pipeline::run_simulation(uint64_t start_seed, uint64_t num_games, uint16_t 
     
     uint64_t current_start = start_seed;
  
+    // Creazione del vettore di puntatori atomici per tracciare il progresso
+    // Usiamo AlignedAtomicProgress per evitare false sharing.
+    std::vector<std::unique_ptr<AlignedAtomicProgress>> progress;
+    progress.reserve(num_threads);
+    for (int i = 0; i < num_threads; ++i) {
+        progress.push_back(std::make_unique<AlignedAtomicProgress>());
+    }
+
     // Fase di MAP: Lanciamo i thread
     for (int i = 0; i < num_threads; ++i) {
         // L'ultimo thread si prende anche il resto delle partite
         uint64_t current_end = current_start + chunk_size + (i == num_threads - 1 ? remainder : 0);
         
         // Creiamo il thread. Passiamo la funzione da eseguire e i suoi parametri.
-        // Attenzione al &results[i]: passiamo l'indirizzo di memoria del "foglio" di questo thread.
-        threads.emplace_back(std::thread(worker_task, current_start, current_end, cutoff, &results[i]));
+        threads.emplace_back(std::thread(worker_task, current_start, current_end, cutoff, &results[i], &progress[i]->value));
         
         current_start = current_end; // Aggiorno la partenza per il thread successivo
     }
  
+    // Monitoraggio del progresso in tempo reale su stderr
+    bool is_terminal = false;
+#ifdef _WIN32
+    is_terminal = _isatty(2) != 0;
+#else
+    is_terminal = isatty(2) != 0;
+#endif
+
+    uint64_t total_progress = 0;
+    int bar_width = 40;
+
+    if (is_terminal) {
+        while (total_progress < num_games) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            total_progress = 0;
+            for (int i = 0; i < num_threads; ++i) {
+                total_progress += progress[i]->value.load(std::memory_order_relaxed);
+            }
+            
+            double pct = (double)total_progress / num_games * 100.0;
+            int pos = (int)(bar_width * ((double)total_progress / num_games));
+            
+            std::cerr << "\r[";
+            for (int i = 0; i < bar_width; ++i) {
+                if (i < pos) std::cerr << "=";
+                else if (i == pos) std::cerr << ">";
+                else std::cerr << " ";
+            }
+            std::cerr << "] " << std::fixed << std::setprecision(1) << pct << "% (" << total_progress << "/" << num_games << ")";
+            std::cerr.flush();
+        }
+        std::cerr << "\r[";
+        for (int i = 0; i < bar_width; ++i) {
+            std::cerr << "=";
+        }
+        std::cerr << "] 100.0% (" << num_games << "/" << num_games << ")\n";
+        std::cerr.flush();
+    } else {
+        std::cerr << "Inizio simulazione...\n";
+        std::cerr.flush();
+        
+        double next_report_pct = 10.0;
+        while (total_progress < num_games) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            total_progress = 0;
+            for (int i = 0; i < num_threads; ++i) {
+                total_progress += progress[i]->value.load(std::memory_order_relaxed);
+            }
+            
+            double pct = (double)total_progress / num_games * 100.0;
+            if (pct >= next_report_pct) {
+                std::cerr << "Progresso: " << std::fixed << std::setprecision(0) << next_report_pct << "% (" << total_progress << "/" << num_games << ")\n";
+                std::cerr.flush();
+                next_report_pct += 10.0;
+            }
+        }
+        std::cerr << "Progresso: 100% (" << num_games << "/" << num_games << ")\n";
+        std::cerr.flush();
+    }
+
     // Aspettiamo che tutti i thread finiscano il loro lavoro
     for (int i = 0; i < num_threads; ++i) {
         threads[i].join(); // Il main thread si mette in pausa qui finché il thread i-esimo non ha finito
