@@ -88,6 +88,52 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // Modalità BATCH: ./StracciaCamicia batch [file.txt]
+    if (argc == 3 && std::string(argv[1]) == "batch") {
+        std::string filename = argv[2];
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            std::cerr << "Impossibile aprire il file: " << filename << "\n";
+            return 1;
+        }
+
+        std::string line;
+        uint64_t count = 0;
+        uint64_t loop_count = 0;
+        
+        std::cout << "Analisi Batch in corso sul file: " << filename << "\n";
+        
+        while (std::getline(file, line)) {
+            // Ignora righe vuote o malformate
+            if (line.empty() || line.length() < 40) continue;
+            
+            GameState stato(0);
+            stato.turno = 0; // Inizia il Giocatore A
+            
+            for (int i = 0; i < 20; ++i) {
+                stato.deck_A[i] = line[i] - '0';
+                stato.deck_B[i] = line[i + 20] - '0';
+            }
+            
+            // Runnamo con cutoff a 10000 (più che sufficiente per validare il loop)
+            GameResult res = FastKernel::runGameLoop(stato, 10000);
+            
+            if (res.status == GameStatus::CUTOFF_REACHED) {
+                std::cout << "LOOP TROVATO! Mazzo: " << line << " (sopravvissuto a " << res.num_turns << " turni)\n";
+                loop_count++;
+            }
+            
+            count++;
+            if (count % 5000 == 0) {
+                std::cout << "Processate " << count << " combinazioni...\n";
+            }
+        }
+        
+        std::cout << "Analisi completata! Testate " << count << " varianti.\n";
+        std::cout << "Loop totali sopravvissuti: " << loop_count << "\n";
+        return 0;
+    }
+
     // Se c'è solo un argomento (es. ./StracciaCamicia 424242), facciamo il trace o parse file
     if (argc == 2) {
         std::ifstream file(argv[1]);
