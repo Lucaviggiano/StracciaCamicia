@@ -28,6 +28,7 @@ set(SOURCES
     src/main.cpp
     src/Pipeline.cpp
     src/FastKernel.cpp
+    src/CycleInspector.cpp
 )
 
 # Creiamo l'eseguibile

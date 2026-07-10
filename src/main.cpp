@@ -6,8 +6,10 @@
 #include <sstream>
 #include <algorithm>
 #include <random>
+#include <vector>
 #include "Pipeline.hpp"
 #include "FastKernel.hpp"
+#include "CycleInspector.hpp"
 
 void playCustomGame(const std::string& filename) {
     std::ifstream file(filename);
@@ -86,6 +88,42 @@ int main(int argc, char* argv[]) {
             std::cerr << "Errore nella generazione o scrittura del mazzo.\n";
             return 1;
         }
+    }
+
+    // Gestione comando ispezione: ./StracciaCamicia inspect [file_sospetti.txt] [cutoff]
+    if (argc == 4 && std::string(argv[1]) == "inspect") {
+        std::string filename = argv[2];
+        uint16_t cutoff = std::stoul(argv[3]);
+        
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            std::cerr << "Impossibile aprire il file dei sospetti: " << filename << "\n";
+            return 1;
+        }
+
+        std::string line;
+        std::vector<uint64_t> seeds;
+        while (std::getline(file, line)) {
+            if (line.find("- Seed: ") != std::string::npos) {
+                size_t pos = line.find("- Seed: ") + 8;
+                seeds.push_back(std::stoull(line.substr(pos)));
+            }
+        }
+        
+        std::cout << "Trovati " << seeds.size() << " seed sospetti nel file. Inizio ispezione con cutoff " << cutoff << "...\n";
+        
+        for (uint64_t s : seeds) {
+            std::cout << "-------------------------------------\n";
+            std::cout << "Simulo seed: " << s << " ...\n";
+            GameResult res = FastKernel::playGameFast(s, cutoff);
+            if (res.status == GameStatus::CUTOFF_REACHED) {
+                std::cout << "-> CUTOFF RAGGIUNTO (" << cutoff << " turni).\n";
+                CycleInspector::analyzeSeed(s);
+            } else {
+                std::cout << "-> Partita terminata in " << res.num_turns << " turni (vittoria, no ciclo infinito).\n";
+            }
+        }
+        return 0;
     }
 
     // Se c'è solo un argomento (es. ./StracciaCamicia 424242), facciamo il trace o parse file
