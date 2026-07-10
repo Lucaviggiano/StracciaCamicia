@@ -43,7 +43,11 @@ bool CycleInspector::advanceToNextMacroState(GameState& stato) {
         stato.table[stato.table_size++] = carta_pescata;
         stato.cards_to_play--;
 
-        if (carta_pescata > 0) {
+        if (carta_pescata == 4) {
+            stato.current_attacker = -1;
+            stato.cards_to_play = 1;
+            stato.turno ^= 1;
+        } else if (carta_pescata > 0) {
             stato.current_attacker = stato.turno;
             stato.cards_to_play = carta_pescata;
             stato.turno ^= 1;
@@ -83,7 +87,7 @@ void CycleInspector::analyzeSeed(uint64_t seed) {
 
     // Setup initial state identically to FastKernel
     uint8_t mazzo_base[40] = {
-        1,1,1,1, 2,2,2,2, 3,3,3,3, 0,0,0,0,
+        1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     };
     fast_shuffle(mazzo_base, 40, seed);
