@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <chrono>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -126,15 +127,18 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Generiamo un seed di partenza dinamico combinando random_device e clock di sistema
+    std::random_device rd;
+    uint64_t start_seed = (static_cast<uint64_t>(rd()) << 32) | rd();
+    start_seed ^= std::chrono::high_resolution_clock::now().time_since_epoch().count();
+
     std::cout << "====================================\n";
     std::cout << "   STRACCIACAMICIA - HPC SIMULATOR  \n";
     std::cout << "====================================\n";
     std::cout << "Partite da simulare : " << num_games << "\n";
     std::cout << "Limite turni (Cutoff): " << cutoff << "\n";
-    std::cout << "Thread hardware     : " << num_threads << "\n\n";
-
-    // Decidiamo di partire dal seed 1 per la prima tranche
-    uint64_t start_seed = 1;
+    std::cout << "Thread hardware     : " << num_threads << "\n";
+    std::cout << "Seed di partenza    : " << start_seed << "\n\n";
     
     // Lanciamo l'orchestratore!
     Pipeline::run_simulation(start_seed, num_games, cutoff, num_threads);
