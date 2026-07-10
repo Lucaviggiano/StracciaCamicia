@@ -13,7 +13,7 @@ GameResult FastKernel::playGame(uint64_t seed, uint16_t cutoff) {
     // 1. Creiamo il mazzo "vergine" ordinato (12 attacchi, 4 bloccanti, 24 lisce)
     // Mappatura: 1=Asso, 2=Due, 3=Tre, 4=Quattro, 0=Liscia
     uint8_t mazzo_base[40] = {
-        1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4,
+        1,1,1,1, 2,2,2,2, 3,3,3,3, 0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     };
 
@@ -58,14 +58,7 @@ GameResult FastKernel::runGameLoop(GameState& stato, uint16_t cutoff) {
         // [Assumiamo che tu abbia già estratto la carta, 
 // messa sul tavolo, e fatto: stato.cards_to_play--;]
 
-if (carta_pescata == 4) {
-    // BLOCCO: Il 4 ferma tutto istantaneamente.
-    // L'attacco è annullato e si torna alla normale alternanza.
-    stato.current_attacker = -1;
-    stato.cards_to_play = 1;
-    stato.turno = 1 - stato.turno; // Passo il turno all'avversario
-} 
-else if (carta_pescata > 0) {
+if (carta_pescata > 0) {
     // ATTACCO (1, 2 o 3): Innesca o ribalta un attacco immediatamente!
     // Chi ha tirato questa carta diventa il nuovo attaccante.
     stato.current_attacker = stato.turno;
@@ -145,7 +138,7 @@ else {
 GameResult FastKernel::playGameFast(uint64_t seed, uint16_t cutoff) {
     // Setup mazzo e shuffle con SplitMix64
     uint8_t deck[40] = {
-        1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4,
+        1,1,1,1, 2,2,2,2, 3,3,3,3, 0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     };
     fast_shuffle(deck, 40, seed);
@@ -185,12 +178,7 @@ GameResult FastKernel::playGameFast(uint64_t seed, uint16_t cutoff) {
         table[table_size++] = carta_pescata;
         cards_to_play--;
 
-        if (carta_pescata == 4) {
-            // BLOCCO
-            current_attacker = -1;
-            cards_to_play = 1;
-            turno ^= 1;
-        } else if (carta_pescata > 0) {
+        if (carta_pescata > 0) {
             // ATTACCO (1, 2 o 3)
             current_attacker = turno;
             cards_to_play = carta_pescata;
@@ -237,7 +225,7 @@ GameResult FastKernel::playGameFast(uint64_t seed, uint16_t cutoff) {
 void FastKernel::traceGame(uint64_t seed) {
     // 1. Setup con SplitMix64 (coerente con playGameFast)
     uint8_t mazzo_base[40] = {
-        1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4,
+        1,1,1,1, 2,2,2,2, 3,3,3,3, 0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     };
     fast_shuffle(mazzo_base, 40, seed);
@@ -267,15 +255,10 @@ void FastKernel::traceGame(uint64_t seed) {
         // Stampa lo stato CORRENTE nel CSV
         uint8_t carte_A = (stato.tail_A - stato.head_A) & BUFFER_MASK;
         uint8_t carte_B = (stato.tail_B - stato.head_B) & BUFFER_MASK;
-        int is_blocco = (carta_pescata == 4 && stato.current_attacker != -1) ? 1 : 0;
+        int is_blocco = 0;
         std::cout << stato.num_turn << "," << (int)carte_A << "," << (int)carte_B << "," << (int)stato.table_size << "," << (int)carta_pescata << "," << is_blocco << "\n";
 
-        if (carta_pescata == 4) {
-            stato.current_attacker = -1;
-            stato.cards_to_play = 1;
-            stato.turno = 1 - stato.turno;
-        } 
-        else if (carta_pescata > 0) {
+        if (carta_pescata > 0) {
             stato.current_attacker = stato.turno;
             stato.cards_to_play = carta_pescata;
             stato.turno = 1 - stato.turno;
