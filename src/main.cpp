@@ -171,7 +171,7 @@ int main(int argc, char* argv[]) {
     start_seed ^= std::chrono::high_resolution_clock::now().time_since_epoch().count();
 
     std::cout << "====================================\n";
-    std::cout << "   STRACCIACAMICIA - HPC SIMULATOR  \n";
+    std::cout << "   STRACCIACAMICIA - HPC SIMULATOR (without 4 rule)\n";
     std::cout << "====================================\n";
     std::cout << "Partite da simulare : " << num_games << "\n";
     std::cout << "Limite turni (Cutoff): " << cutoff << "\n";
