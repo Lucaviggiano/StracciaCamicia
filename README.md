@@ -1,5 +1,5 @@
 # StracciaCamicia
-Analisi su simulazione parallela di diverse partire del gioco noto come StracciaCamicia per distribuzione numero di turni e ricerca possibili loop.
+Analisi su simulazione parallela di diverse partite del gioco noto come StracciaCamicia per distribuzione numero di turni e ricerca possibili loop.
 
 Mi è capitato spesso di giocare con amici e colleghi ad un gioco noto come StracciaCamicia (o come lo chiamiamo dalle mie parti "Batticuore"). Le regole del gioco sono semplici e intuitive, si gioca in 2 persone e ha una peculiarità rara nei giochi di carte : è completamente determinato.
 ## Regole Gioco
@@ -8,14 +8,14 @@ le regole di gioco sulle quali si sviluppa il progetto potrebbero essere sconosc
 - mazzo di carte da gioco italiane (napoletane, bergamasche, etc)
 - 2 giocatori
 ### Set-up
-la partita inizia definendo un ordine di gioco, per semplicità definirò due giocatori denominati A e B che ci seguiranno nel corso della spiegazione. uno tra A e B mischia il mazzo di carte e lo divide in due mazzetti da 20 carte ciascuno. Un mazzetto sarà di possesione del giocatore A e l'altro del giocatore B. I mazzetti andranno sempre tenuti tassativamente coperti, le carte saranno allora rivolte verso il tavolo da gioco e nascoste ad entrambi i giocatori.
-Il primo a svolgere una mossa sarà il giocatore che non si è occupato di mischiare, se A mischia e divide i mazzetti sarà il giocatre B a fare la prima mossa.
+la partita inizia definendo un ordine di gioco, per semplicità definirò due giocatori denominati A e B che ci seguiranno nel corso della spiegazione. uno tra A e B mischia il mazzo di carte e lo divide in due mazzetti da 20 carte ciascuno. Un mazzetto sarà di possesso del giocatore A e l'altro del giocatore B. I mazzetti andranno sempre tenuti tassativamente coperti, le carte saranno allora rivolte verso il tavolo da gioco e nascoste ad entrambi i giocatori.
+Il primo a svolgere una mossa sarà il giocatore che non si è occupato di mischiare, se A mischia e divide i mazzetti sarà il giocatore B a fare la prima mossa.
 ### Mosse Concesse
 L'unica mossa concessa in questo gioco è sfilare dalla testa del proprio mazzetto le carte, posizionandole scoperte sul tavolo per mostrare il valore riportato su ognuna di esse. Tale Mossa è strettamente sequenziale e nel flusso standard del gioco impone di sfilare una sola carta, alternandosi di continuo tra i giocatori.
 Ecco un esempio di flusso standard : \
 A mischia e divide i mazzetti --> B sfila e mostra una carta --> A sfila e mostra una carta --> B ...
 #### Carte Attacco, Bloccanti e Lisce
-alla luce della dinamica apprezzata non tutte le carte presenti nel mazzo hanno la stessa funzione. Possono esssere divise in 5 categorie
+alla luce della dinamica apprezzata non tutte le carte presenti nel mazzo hanno la stessa funzione. Possono essere divise in 5 categorie
 - ASSI : i 4 assi presenti nel mazzo da gioco
 - DUE : i 4 due presenti nel mazzo da gioco
 - TRE : i 4 tre presenti nel mazzo da gioco
@@ -28,7 +28,7 @@ Seguendo il flusso standard sopra citato un giocatore, nel suo turno, sfilerà d
 
 l'attaccante impone al difensore di sfilare dal proprio mazzetto tante carte quante dettate dalla carta attacco girata. Se la carta attacco è un'asso il difensore dovrà obbligatoriamente sfilare una carta dalla cima del proprio mazzetto, se la carta è un due allora ne dovrà sfilare due in modo necessariamente sequenziale, e cosi via fino al tre. il difensore al contempo, obbediendo alla logica difensiva imposta dal gioco, deve sperare che, tra le carte sfilate per difendersi, ci sia una carta bloccante o un ulteriore carta attacco.
 
-Nel caso il difensore sfilasse unicamente carte liscie l'attacco terminerebbe. Il difensore non sarebbe stato allora in grado di difendersi e l'attaccante riceverebbe come premio tutte le carte presenti per terra fino a quel momento. Le carte vinte vanno inserite in coda al proprio mazzetto, senza alterare minimamente l'ordine con cui sono state sfilate nel gioco. Una volta terminato l'attacco il gioco ripartirà, questa volta sarà il vincitore del precedente scontro a partire, sfilando la prima carta in coda al proprio mazzetto, a cui l'avversario risponderà seguendo il flusso standard. 
+Nel caso il difensore sfilasse unicamente carte lisce l'attacco terminerebbe. Il difensore non sarebbe stato allora in grado di difendersi e l'attaccante riceverebbe come premio tutte le carte presenti per terra fino a quel momento. Le carte vinte vanno inserite in coda al proprio mazzetto, senza alterare minimamente l'ordine con cui sono state sfilate nel gioco. Una volta terminato l'attacco il gioco ripartirà, questa volta sarà il vincitore del precedente scontro a partire, sfilando la prima carta in coda al proprio mazzetto, a cui l'avversario risponderà seguendo il flusso standard. 
 
 Se invece venisse sfilata una carta bloccante o una carta attacco in difesa, l'attacco terminerebbe in modo fallimentare. La carta bloccante semplicemente blocca l'attacco riportando il flusso di gioco standard in rigore. Di conseguenza dopo il blocco, il turno passa al precedente attaccante e si riprende a sfilare normalmente. \
 Le carte attacco invece invertono i ruoli, ora colui che prima difendeva diventa l'attaccante con la stessa logica applicata in precedenza. Ne nasce un attacco a catena da cui il precedente attaccante, ora difensore, dovrà difendersi seguendo le regole del gioco.
@@ -118,7 +118,7 @@ Alla luce dei risultati apprezzati nel paragrafo precedente, una ricerca esausti
 **Secondo dettaglio fondamentale** : Trovare una partita che non finisce mai unicamente dalla simulazione è notoriamente impossibile. Avendo però definito la macchina a stati finiti che descrive il gioco, diventa più facile trovare dei cicli guardando la struttura a grafo da essa generata. Le partite simulate avranno quindi un Cutoff limite sulla durata della simulazione, una volta superato tale limite la partita verrà salvata e analizzata successivamente tramite algoritmi di rilevamento cicli.
 
 ## Microstati e struttura dei dati
-Il passaggio tra uno stato e l'altro, come definiti in precedenza, richiede più turni. Un turno è definito dallo sfilamento di una carta da uno dei due mazzetti. Poiché nella simulazione della partita non possiamo passare direttamente da uno stato all'altro senza simulare tutti i turni interni, definiamo dei Microstrati. Essi sono delle specializzazioni degli stati definiti in precedenza ma distano tra loro un singolo turno. Inglobano anche gli stati standard ma hanno più informazioni cosi da permettere una valida simulazione a livello implementativo.
+Il passaggio tra uno stato e l'altro, come definiti in precedenza, richiede più turni. Un turno è definito dallo sfilamento di una carta da uno dei due mazzetti. Poiché nella simulazione della partita non possiamo passare direttamente da uno stato all'altro senza simulare tutti i turni interni, definiamo dei Microstati. Essi sono delle specializzazioni degli stati definiti in precedenza ma distano tra loro un singolo turno. Inglobano anche gli stati standard ma hanno più informazioni cosi da permettere una valida simulazione a livello implementativo.
 ### Informazioni Microstati :
 Ecco una lista delle informazioni che caratterizzano univocamente un Mictrostato :
 - Mazzetto del giocatore A
@@ -135,7 +135,7 @@ si noti che nel caso il mazzetto nel tavolo fosse vuoto ci troveremmo in uno deg
 ---
 
 ## Kernel
-Definiti i Microstati la struttura è chiara. Partendo da un determinato microstrato si guardano le informazioni sul giocatore che deve svolegere il turno, il numero di carte da sfilare e il giocatore in attacco e si passa al microstato successivo seguendo le regole del gioco. 
+Definiti i Microstati la struttura è chiara. Partendo da un determinato microstato si guardano le informazioni sul giocatore che deve svolegere il turno, il numero di carte da sfilare e il giocatore in attacco e si passa al microstato successivo seguendo le regole del gioco. 
 
 Le carte sono codificate seguendo la categorizzazione apprezzata in precedenza. Le carte lisce sono codificate da uno 0, gli assi da 1, i due da 2 e i tre da 3 e le carte bloccanti da 4. Seguendo questa codifica, con delle corte strutture di blocchi if annidati rispetto al numero di carte da sfilare e alla carta sfilata nel turno, possiamo tranquillamente simulare un turno di gioco. Salviamo inoltre in un contatore il numero di turni simulati dall'inizio della partita. Tale kernel di simulazione è altamente parallelizzato e ottimizzato. 
 
