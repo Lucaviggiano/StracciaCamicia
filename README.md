@@ -202,3 +202,95 @@ Questo ciclo è di un ordine di grandezza più piccolo rispetto agli altri, il c
 
 <img width="1500" height="600" alt="Loop_infinito" src="https://github.com/user-attachments/assets/8bbdbdb8-c90d-453d-981c-2033c2ad0efa" />
 
+# Guida al programma
+In questa sezione si illustrano le modalità di compilazione e le diverse funzionalità offerte dal programma. Il progetto è scritto interamente in C++17 e utilizza CMake come sistema di build. Non ha dipendenze esterne, si appoggia unicamente alla libreria standard e ai thread POSIX (o equivalente Windows).
+
+## Compilazione
+per compilare il progetto è sufficiente creare una cartella di build e lanciare CMake. Su sistemi Linux o macOS :
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
+```
+su Windows con Visual Studio installato il procedimento è identico, CMake genererà automaticamente il progetto per MSVC. L'eseguibile verrà prodotto direttamente nella cartella `build/` indipendentemente dalla piattaforma, grazie alla configurazione forzata dell'output directory nel CMakeLists.
+
+## Branch disponibili
+il progetto mantiene due branch principali che differiscono nella logica di gioco implementata :
+- **main** : implementa le regole complete, inclusa la regola del 4 bloccante. In questa variante le carte di valore 4 interrompono istantaneamente un attacco in corso riportando il flusso di gioco alla normale alternanza.
+- **Normal_rule** : implementa le regole senza il 4 bloccante. Le carte di valore 4 non esistono nel mazzo e le uniche carte non lisce sono le carte attacco (assi, due e tre).
+
+entrambi i branch condividono la stessa architettura e le stesse modalità di utilizzo descritte di seguito. La stampa iniziale del programma specifica sempre quale variante è in esecuzione.
+
+## Modalità di utilizzo
+il programma espone diverse modalità operative selezionabili tramite argomenti da riga di comando. Se nessun argomento viene fornito il programma parte in modalità simulazione con i valori di default (1 milione di partite, cutoff a 10.000 turni).
+
+### Simulazione massiva
+è la modalità principale del programma, quella per cui è stato concepito. Lancia la simulazione parallela di un numero arbitrario di partite, distribuendo il carico su tutti i core disponibili della macchina.
+```bash
+./StracciaCamicia [num_partite] [cutoff] [num_thread]
+```
+- **num_partite** : quante partite simulare in totale. Il valore di default è 1.000.000.
+- **cutoff** : il numero massimo di turni concessi ad una singola partita prima di essere interrotta e segnalata come sospetta. Il valore di default è 10.000.
+- **num_thread** : il numero di thread da utilizzare per la simulazione. Il valore di default è il numero massimo di thread hardware rilevati automaticamente dalla macchina.
+
+il seed di partenza viene generato automaticamente combinando `std::random_device` e il clock di sistema ad alta risoluzione, garantendo unicità tra esecuzioni successive. Ogni partita simulata utilizza un seed incrementale a partire da quello iniziale. Al termine della simulazione il programma stampa un report completo con vittorie, turni medi, estremi e la lista dei seed sospetti che hanno raggiunto il cutoff.
+
+esempio di lancio per 100 miliardi di partite con cutoff a 5000 turni su 32 thread :
+```bash
+./StracciaCamicia 100000000000 5000 32
+```
+
+### Tracciamento singola partita
+data una partita di interesse (tipicamente individuata dalla simulazione massiva) è possibile riprodurla turno per turno generando un file CSV con lo stato del gioco ad ogni singolo sfilamento.
+```bash
+./StracciaCamicia [seed]
+```
+il programma ricostruisce il mazzo iniziale a partire dal seed fornito, simula la partita e stampa su stdout un CSV con le colonne : `Turno, Carte_A, Carte_B, Dim_Tavolo, Carta_Pescata, Blocco`. Questo output è pensato per essere rediretto su file e successivamente analizzato o graficato con strumenti esterni.
+
+esempio di utilizzo :
+```bash
+./StracciaCamicia 3549138451982464284 > traccia.csv
+```
+il file risultante può essere caricato nel script `plot_trace.py` incluso nel repository per visualizzare graficamente l'andamento delle carte dei due giocatori nel tempo.
+
+### Partita personalizzata
+è possibile simulare una partita a partire da un mazzo definito manualmente, senza passare per il meccanismo dei seed. Il programma accetta in input un file di testo con il mazzo completo e i nomi dei giocatori.
+```bash
+./StracciaCamicia [nome_file.txt]
+```
+il file deve rispettare il seguente formato :
+```
+Mazzo : 0030202030100204001001003040010040030204
+Giocatori Alice Bob
+```
+dove la stringa del mazzo è composta da 40 cifre (le prime 20 per il primo giocatore, le restanti 20 per il secondo) e la riga Giocatori specifica i nomi dei due sfidanti. Il programma stamperà il vincitore e il numero di turni impiegati.
+
+### Salvataggio mazzo da seed
+per esportare il mazzo generato da un determinato seed in un file di testo riutilizzabile nella modalità personalizzata :
+```bash
+./StracciaCamicia save [seed] [nome_file.txt]
+```
+il programma genererà il file con il mazzo mischiato corrispondente al seed specificato, pronto per essere ispezionato manualmente o caricato nella modalità partita personalizzata.
+
+### Ispezione seed sospetti
+questa è la modalità di analisi post-simulazione. Dato un file contenente i seed sospetti (prodotto automaticamente dalla simulazione massiva), il programma li rifiltra con un cutoff più elevato e, per quelli che lo superano, esegue l'algoritmo di rilevamento cicli di Floyd (lepre e tartaruga) per determinare con certezza se la partita entra in un loop infinito.
+```bash
+./StracciaCamicia inspect [file_sospetti.txt] [cutoff]
+```
+- **file_sospetti.txt** : il file prodotto dalla simulazione contenente le righe nel formato `- Seed: 123456789`.
+- **cutoff** : il nuovo limite di turni per il filtraggio. Si consiglia un valore sensibilmente superiore a quello usato nella simulazione originale (ad esempio 20.000 se la simulazione usava 5.000).
+
+per ogni seed che supera il cutoff l'algoritmo di Floyd individua l'esatto punto di ingresso nel ciclo e la sua lunghezza, sia in termini di stati (prese completate con tavolo vuoto) sia in turni effettivi.
+
+esempio di utilizzo :
+```bash
+./StracciaCamicia inspect sospetti.txt 20000
+```
+
+### Analisi batch da file
+la modalità batch consente di testare in serie un elenco di mazzi predefiniti, tipicamente generati da analisi combinatorie esterne. Il programma legge un file di testo dove ogni riga rappresenta un mazzo completo (40 cifre) e simula la partita corrispondente, segnalando quelli che raggiungono il cutoff.
+```bash
+./StracciaCamicia batch [file.txt]
+```
+il file deve contenere una riga per mazzo, ciascuna composta dalle 40 cifre nella codifica standard (0=Liscia, 1=Asso, 2=Due, 3=Tre, 4=Blocco). Il cutoff in questa modalità è fissato a 10.000 turni.
