@@ -185,7 +185,7 @@ Questo seed parte esattamente da una configurazione che è già parte del loop p
 - **Mazzo Iniziale** (dalla cima alla coda - diviso in mazzetti): 40030400201004003010 00203030100202040010
 
 NOTE
-Curiosità: La durata del loop in stati di questo seed (3220) è identica a quella del primo seed. Pur partendo da disposizioni iniziali apparentemente diverse, è possibile che entrambi convergano nello stesso enorme attrattore (lo stesso ciclo), sebbene entrino nel ciclo in punti leggermente diversi
+*Verifica Attrattori*: La durata del loop in stati di questo seed (3220) è identica a quella del primo seed. Un'analisi approfondita ha confermato che **entrambi convergono esattamente allo stesso ciclo attrattore**. Pur partendo da disposizioni iniziali diverse, raggiungono la stessa identica sequenza di stati periodici, entrando nel ciclo in punti differenti.
 
 ---
 
@@ -214,13 +214,6 @@ cmake ..
 cmake --build . --config Release
 ```
 su Windows con Visual Studio installato il procedimento è identico, CMake genererà automaticamente il progetto per MSVC. L'eseguibile verrà prodotto direttamente nella cartella `build/` indipendentemente dalla piattaforma, grazie alla configurazione forzata dell'output directory nel CMakeLists.
-
-## Branch disponibili
-il progetto mantiene due branch principali che differiscono nella logica di gioco implementata :
-- **main** : implementa le regole complete, inclusa la regola del 4 bloccante. In questa variante le carte di valore 4 interrompono istantaneamente un attacco in corso riportando il flusso di gioco alla normale alternanza.
-- **Normal_rule** : implementa le regole senza il 4 bloccante. Le carte di valore 4 non esistono nel mazzo e le uniche carte non lisce sono le carte attacco (assi, due e tre).
-
-entrambi i branch condividono la stessa architettura e le stesse modalità di utilizzo descritte di seguito. La stampa iniziale del programma specifica sempre quale variante è in esecuzione.
 
 ## Modalità di utilizzo
 il programma espone diverse modalità operative selezionabili tramite argomenti da riga di comando. Se nessun argomento viene fornito il programma parte in modalità simulazione con i valori di default (1 milione di partite, cutoff a 10.000 turni).
