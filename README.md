@@ -110,5 +110,95 @@ con *H(k)* la probabilità che nel taglio k la partizione sia in uno stato di co
 Precisiamo un aspetto sul "Taglio sul dominio logico". Si potrebbe pensare di sfruttarlo definendo uno stato a Regime da cui passano tutte le partite, tale stato indicherebbe una vittoria di ciclo (e conseguente raccolta carte) di entrambi i giocatori. Successivamente ad esso la nostra riduzione (stimata al 98.5%)  entrerebbe in rigore trasformando la formula degli stati esplorabili in modo "dinamico". Tuttavia, questa riduzione a priori è matematicamente scorretta. Esistono infatti rami del grafo perfettamente validi (i cosiddetti "cappotti") in cui un giocatore subisce attacchi continui senza mai vincere una presa. In questi scenari, il giocatore passivo non altererà mai il fondo del proprio mazzo, conservando la "memoria" dello shuffle iniziale (che potrebbe benissimo essere una carta attacco) fino al suo esaurimento.
 
 Sebbene non sia un vincolo assoluto per tutte le foglie del grafo, la regola del suffisso regolare agisce come un potente attrattore. Non appena la partita supera le fasi iniziali e si verifica uno scambio di prese tra i due giocatori, il sistema collassa in un sottospazio in cui entrambi i mazzetti seguono necessariamente la regola sui suffissi. Calcolando la probabilità combinata, sappiamo che solo circa il 1.46% degli stati teorici possiede una struttura di questo tipo. Questo significa che, una volta esaurito il transitorio iniziale, la nostra macchina a stati finiti (FSM) abbandonerà per sempre quasi il 99% dello spazio $N_{explore}$, confinando i loop infiniti e le partite più lunghe all'interno di questo nucleo grammaticale ristretto.
+# Implementazione
+Alla luce dei risultati apprezzati nel paragrafo precedente, una ricerca esaustiva di loop nello spazio degli stati esplorabili non è computazionalmente affrontabile. L'unico approccio valido è la simulazione di quante più partite possibili partendo da mazzi mischiati in modo semi-randomico. Il focus della parte implementativa sarà questo : Creare una struttura che permetta di simulare il numero maggiore di partite, alla ricerca di un loop.
 
+**Primo dettaglio fondamentale** : Il problema di simulare partite è estremamente parallelizzabile. Le partite non si influenzano tra loro, quindi, sfruttando al massimo la potenza di calcolo e parallelismo della cpu, se ne possono simulare multiple in parallelo.
+
+**Secondo dettaglio fondamentale** : Trovare una partita che non finisce mai unicamente dalla simulazione è notoriamente impossibile. Avendo però definito la macchina a stati finiti che descrive il gioco, diventa più facile trovare dei cicli guardando la struttura a grafo da essa generata. Le partite simulate avranno quindi un Cutoff limite sulla durata della simulazione, una volta superato tale limite la partita verrà salvata e analizzata successivamente tramite algoritmi di rilevamento cicli.
+
+## Microstati e struttura dei dati
+Il passaggio tra uno stato e l'altro, come definiti in precedenza, richiede più turni. Un turno è definito dallo sfilamento di una carta da uno dei due mazzetti. Poiché nella simulazione della partita non possiamo passare direttamente da uno stato all'altro senza simulare tutti i turni interni, definiamo dei Microstrati. Essi sono delle specializzazioni degli stati definiti in precedenza ma distano tra loro un singolo turno. Inglobano anche gli stati standard ma hanno più informazioni cosi da permettere una valida simulazione a livello implementativo.
+### Informazioni Microstati :
+Ecco una lista delle informazioni che caratterizzano univocamente un Mictrostato :
+- Mazzetto del giocatore A
+- Mazzetto del giocatore B
+- Mazzetto nel tavolo
+- giocatore che deve svolgere il turno
+- giocatore in attacco
+- numero di carte da sfilare
+
+si noti che nel caso il mazzetto nel tavolo fosse vuoto ci troveremmo in uno degli stati standard come definitivi in precedenza.
+
+<img width="1625" height="447" alt="image" src="https://github.com/user-attachments/assets/2c8beeac-f47b-4d0c-97f6-585825608983" />
+
+---
+
+## Kernel
+Definiti i Microstati la struttura è chiara. Partendo da un determinato microstrato si guardano le informazioni sul giocatore che deve svolegere il turno, il numero di carte da sfilare e il giocatore in attacco e si passa al microstato successivo seguendo le regole del gioco. 
+
+Le carte sono codificate seguendo la categorizzazione apprezzata in precedenza. Le carte lisce sono codificate da uno 0, gli assi da 1, i due da 2 e i tre da 3 e le carte bloccanti da 4. Seguendo questa codifica, con delle corte strutture di blocchi if annidati rispetto al numero di carte da sfilare e alla carta sfilata nel turno, possiamo tranquillamente simulare un turno di gioco. Salviamo inoltre in un contatore il numero di turni simulati dall'inizio della partita. Tale kernel di simulazione è altamente parallelizzato e ottimizzato. 
+
+I risultati di ogni partita simulata sono :
+  1. Seed di partenza del mazzo da carte completo (pre-shuffle), per riproducibilità della partita.
+  2. Numero di Turni della partita, per Cutoff.
+
+
+## Simulazione completa
+Nella sezione "Guida al programma" si potranno trovare le indicazioni per riprodurre l'esperimento o altre funzionalità avanzate aggiunte. La simulazione completa segue un flusso elementare : si lancia la simulazione di uno specifico numero di partite (argomento del programma), con uno specifico Cutoff (anche esso argomento) - Tutte le partite che avranno una durata in turni superiore a tale Cutoff saranno salvate, in particolare verrà salvato il seed del mazzo di partenza cosi da poterla riprodurre. Si esegue una analisi dei cicli su partite che superano cut-off (algoritmo di rilevamento dei cicli di Floyd).
+
+# Risultati Simulazione
+Inanzitutto è da apprezzare la potenza simulativa di un kernel ben ottimizzato. In una cpu da 32 core si è raggiunto un Throughput di 22.8922 Milioni di sim/sec. Simulando 100 miliardi di partite (in 1 ora e 12 minuti) i risultati rispondo a pieno al dubbio cuore del progetto. \
+Sono state trovate ben 4 partite infinite :  la dinamica è tale che il sistema riesce a trovare delle particolari disposizioni delle carte che, dopo un breve transitorio iniziale, portano a un ciclo chiuso in cui i due giocatori continuano a scambiarsi prese all'infinito senza che nessuno riesca a svuotare il mazzetto dell'avversario. Di seguito i dettagli strutturali e, soprattutto, i mazzi iniziali per ognuna di queste configurazioni. Si Ricorda che le prime 20 carte appartengono al Giocatore A e le restanti 20 al Giocatore B - sarà quest'ultimo ad iniziare.
+
+---
+
+**Seed: 3549138389513009901**
+
+Questo loop entra a regime quasi subito, ma il ciclo in sé è gigantesco, durando decine di migliaia di turni prima di ripetersi.
+
+- **Transitorio iniziale (Inizio ciclo)**: 1 stato
+- **Lunghezza del Loop** (stati): 3.220
+- **Durata del Loop** (Turni): 31.680 turni per singola ripetizione
+- **Mazzo Iniziale** (dalla cima alla coda - diviso in mazzetti): 00302020301002040010 01003040010040030204
+
+---
+
+**Seed: 3549138391254191215**
+
+Un ciclo leggermente più corto, ma altrettanto affascinante. Raggiunge il regime dopo soli 2 stati (ovvero dopo le primissime 2 prese).
+
+- **Transitorio iniziale (Inizio ciclo)**: 2 stati
+- **Lunghezza del Loop** (stati): 1.876
+- **Durata del Loop** (Turni): 18.999 turni per singola ripetizione
+- **Mazzo Iniziale** (dalla cima alla coda - diviso in mazzetti): 00400100304002030100 14003030201004002020
+
+---
+
+**Seed: 3549138409557862522**
+
+Questo seed parte esattamente da una configurazione che è già parte del loop perfetto, senza alcun transitorio di stati da smaltire.
+
+- **Transitorio iniziale (Inizio ciclo)**: 0 stati
+- **Lunghezza del Loop** (stati): 3.220
+- **Durata del Loop** (Turni): 31.720 turni per singola ripetizione
+- **Mazzo Iniziale** (dalla cima alla coda - diviso in mazzetti): 40030400201004003010 00203030100202040010
+
+NOTE
+Curiosità: La durata del loop in stati di questo seed (3220) è identica a quella del primo seed. Pur partendo da disposizioni iniziali apparentemente diverse, è possibile che entrambi convergano nello stesso enorme attrattore (lo stesso ciclo), sebbene entrino nel ciclo in punti leggermente diversi
+
+---
+
+**Seed: 3549138451982464284**
+
+Questo ciclo è di un ordine di grandezza più piccolo rispetto agli altri, il che lo rende teoricamente più "facile" da analizzare se si volesse tracciare manualmente la sequenza di attacchi e blocchi.
+
+- **Transitorio iniziale (Inizio ciclo)**: 3 stati
+- **Lunghezza del Loop** (stati): 420
+- **Durata del Loop** (Turni): 3.920 turni per singola ripetizione
+- **Mazzo Iniziale** (dalla cima alla coda - diviso in mazzetti): 10014004003010020203 00200301004004003020
+
+
+
+<img width="1500" height="600" alt="Loop_infinito" src="https://github.com/user-attachments/assets/8bbdbdb8-c90d-453d-981c-2033c2ad0efa" />
 
