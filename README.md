@@ -139,6 +139,7 @@ Ecco una lista delle informazioni che caratterizzano univocamente un Microstato 
 Si noti che nel caso il mazzetto nel tavolo fosse vuoto ci troveremmo in uno degli stati standard come definitivi in precedenza.
 
 <img width="1625" height="447" alt="image" src="https://github.com/user-attachments/assets/2c8beeac-f47b-4d0c-97f6-585825608983" />
+
 *Figura 1: Rappresentazione di un Microstato e dei suoi componenti durante la simulazione.*
 
 
@@ -212,7 +213,8 @@ Questo ciclo è di un ordine di grandezza più piccolo rispetto agli altri, il c
 
 
 <img width="1500" height="600" alt="Loop_infinito" src="https://github.com/user-attachments/assets/8bbdbdb8-c90d-453d-981c-2033c2ad0efa" />
-*Figura 2: Tracciato dell'onda stazionaria di un loop infinito (andamento del numero di carte per giocatore nel tempo).*
+
+*Figura 2: Tracciato di un loop (andamento del numero di carte per giocatore nel tempo).*
 
 
 # Guida al programma
